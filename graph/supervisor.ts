@@ -1,23 +1,24 @@
 import fs from 'fs';
-import type { ReactAgent } from "langchain";
-import { createDocGenAgent } from "../agents/doc_gen_agent.ts";
-import { createCodeSearchAgent } from "../agents/code_search_agent.ts";
-import { generateSqlLiteSaver } from "../utils/generate_sqllite_saver.ts";
-import { createGithubActivityAgent } from "../agents/github_activity_agent.ts";
-import { Annotation, END, interrupt, START, StateGraph } from "@langchain/langgraph";
 import { llm } from "../config/llm.ts";
-import { generateMarkdownFromDoc } from "../utils/generate_markdown_from_doc.ts";
-import routeDecisionSchema from "../schemas/route_decision_schema.ts";
-import type { RunnableConfig } from "@langchain/core/runnables";
+import type { ReactAgent } from "langchain";
 import type { BaseMessage } from "@langchain/core/messages";
+import { createDocGenAgent } from "../agents/doc_gen_agent.ts";
+import type { RunnableConfig } from "@langchain/core/runnables";
+import routeDecisionSchema from "../schemas/route_decision_schema.ts";
 import onBoardingDocSchema from '../schemas/on_boarding_doc_schema.ts';
+import { createCodeSearchAgent } from "../agents/code_search_agent.ts";
+import { generateSqlLiteSaver } from "../utils/sqllite_saver.ts";
+import { createGithubActivityAgent } from "../agents/github_activity_agent.ts";
+import { generateMarkdownFromDoc } from "../utils/markdown_to_doc.ts";
+import { Annotation, END, interrupt, START, StateGraph } from "@langchain/langgraph";
+import { GENERAL_NODE_PROMPT, ROUTE_DECISION_PROMPT } from '../utils/prompts.ts';
 
 const checkpointer = generateSqlLiteSaver("./repopilot-checkpoints.db");
-type RepoContext = { repoPath: string; owner?: string; repo?: string };
 
-type State = typeof SupervisorState.State;
+type RepoContext = { repoPath: string; owner: string; repo: string };
+type State = typeof supervisorState.State;
 
-const SupervisorState = Annotation.Root({
+const supervisorState = Annotation.Root({
     question: Annotation<string>(),
     answer: Annotation<string>(),
     repoContext: Annotation<RepoContext>(),
@@ -60,15 +61,8 @@ function getGithubActivityAgent() {
 async function routeQuestion(state: State) {
     const structuredLlm = llm.withStructuredOutput(routeDecisionSchema);
     const result = await structuredLlm.invoke([
-        {
-            role: "system",
-            content: `Classify the user's question into exactly one category:
-- docGenNode: user wants generated onboarding documentation or a written guide for the codebase
-- githubActivityNode: about GitHub activity — commits, issues, pull requests, who changed what, recent changes
-- codeSearchNode: about how the code works, its structure, purpose, logic, functions, classes — including general questions like "what is this codebase" or "what does this project do"
-- generalNode: greetings, small talk, or anything unrelated to this specific repository`,
-        },
-        { role: "user", content: state.question },
+        { role: "system", content: ROUTE_DECISION_PROMPT },
+        { role: "human", content: state.question },
     ]);
     console.log(result.route);
 
@@ -81,13 +75,13 @@ function lastMessageText(result: { messages: BaseMessage[] }): string {
 }
 
 async function codeSearchNode(state: State, config: RunnableConfig) {
-    const repoPath = state.repoContext?.repoPath;
+    const repoPath = state.repoContext.repoPath;
     if (!repoPath) {
         return { answer: "I need a local repo path (repoContext.repoPath) to search code." };
     }
     const agent = getCodeSearchAgent(repoPath);
     const result = await agent.invoke(
-        { messages: [{ role: "user", content: state.question }] },
+        { messages: [{ role: "human", content: state.question }] },
         config
     );
     return { answer: lastMessageText(result) };
@@ -98,7 +92,7 @@ async function githubActivityNode(state: State, config: RunnableConfig) {
     const { owner, repo } = state.repoContext || {};
     const contextPrefix = owner && repo ? `(Repository: ${owner}/${repo}) ` : "";
     const result = await agent.invoke(
-        { messages: [{ role: "user", content: contextPrefix + state.question }] },
+        { messages: [{ role: "human", content: contextPrefix + state.question }] },
         config
     );
     return { answer: lastMessageText(result) };
@@ -114,8 +108,17 @@ async function docGenNode(state: State, config: RunnableConfig) {
         { messages: [{ role: "user", content: state.question }] },
         config
     );
-    const doc = onBoardingDocSchema.parse(result.structuredResponse);
-    return { generatedDoc: generateMarkdownFromDoc(doc) };
+    const parsed = onBoardingDocSchema.safeParse(result.structuredResponse);
+    const generatedDoc = parsed.success
+        ? generateMarkdownFromDoc(parsed.data)
+        : lastMessageText(result);
+
+    console.log(`Parsed ${parsed.data}`);
+    console.log(`Result ${result.structuredResponse}`);
+
+
+
+    return { generatedDoc };
 }
 
 function approveDoc(state: State) {
@@ -141,24 +144,13 @@ async function generalNode(state: State) {
     const repoLabel = owner && repo ? `${owner}/${repo}` : "the connected repository";
 
     const response = await llm.invoke([
-        {
-            role: "system", content: `You are RepoPilot, an AI assistant that helps developers understand and work with the "${repoLabel}" codebase.
-
-You handle general conversation, greetings, and questions that don't fit your specialized capabilities. Your specialized capabilities — handled elsewhere, not by you — are:
-- Explaining how the code works, its structure, and logic
-- Reporting on GitHub activity: commits, issues, and pull requests
-- Generating onboarding documentation for the codebase
-
-If the user's message is a greeting or small talk, respond warmly and briefly mention what you can help with for this repo.
-If the user asks something clearly related to code, GitHub activity, or documentation that seems to have been misrouted here, let them know you didn't quite catch that and ask them to rephrase — don't try to answer it yourself without real information.
-Keep responses brief — a sentence or two.`
-        },
+        { role: "system", content: GENERAL_NODE_PROMPT(repoLabel) },
         { role: "human", content: state.question },
     ]);
     return { answer: response.content };
 }
 
-const supervisor = new StateGraph(SupervisorState)
+const supervisor = new StateGraph(supervisorState)
     .addNode("codeSearchNode", codeSearchNode)
     .addNode("githubActivityNode", githubActivityNode)
     .addNode("docGenNode", docGenNode)

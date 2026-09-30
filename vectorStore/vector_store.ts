@@ -1,9 +1,9 @@
 import fs from 'fs';
 import type { Document } from "@langchain/core/documents";
-import { generateCodeFiles } from '../utils/generate_code_files.ts';
+import { generateCodeFiles } from '../utils/code_files.ts';
 import { chromaDBFromDoc, loadChromaDB } from '../config/chroma.ts';
 import type { Chroma } from '@langchain/community/vectorstores/chroma';
-import { repoNameToCollectionName } from '../utils/generate_collection_name.ts';
+import { repoNameToCollectionName } from '../utils/collection_name.ts';
 import { RecursiveCharacterTextSplitter } from '@langchain/classic/text_splitter';
 
 const splitter = new RecursiveCharacterTextSplitter({

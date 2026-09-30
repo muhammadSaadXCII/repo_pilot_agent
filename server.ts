@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import readline from 'readline';
 import { Command } from '@langchain/langgraph';
-import { buildThreadId } from './utils/generate_thread_id.ts';
+import { buildThreadId } from './utils/thread_id.ts';
 import { supervisor } from './graph/supervisor.ts';
 
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
@@ -18,7 +18,7 @@ type SupervisorResponse = Awaited<ReturnType<typeof supervisor.invoke>> & {
 const repoContext = {
     repoPath: import.meta.dirname,
     owner: "muhammadSaadXCII",
-    repo: "repo_pilot",
+    repo: "repo_pilot_agent",
 };
 const config = {
     configurable: { thread_id: buildThreadId('localdev', repoContext.owner, repoContext.repo) },
@@ -79,7 +79,6 @@ async function handleInterrupt(response: SupervisorResponse): Promise<void> {
         await handleInterrupt(resumed);
         return;
     }
-    console.log(response);
 
     console.log(`\n🤖: ${response.answer}\n`);
     // for await (const [messageChunk] of response) {
