@@ -4,14 +4,12 @@ import type { ReactAgent } from "langchain";
 import type { BaseMessage } from "@langchain/core/messages";
 import { createDocGenAgent } from "../agents/doc_gen_agent.ts";
 import type { RunnableConfig } from "@langchain/core/runnables";
-import routeDecisionSchema from "../schemas/route_decision_schema.ts";
-import onBoardingDocSchema from '../schemas/on_boarding_doc_schema.ts';
-import { createCodeSearchAgent } from "../agents/code_search_agent.ts";
 import { generateSqlLiteSaver } from "../utils/sqllite_saver.ts";
+import routeDecisionSchema from "../schemas/route_decision_schema.ts";
+import { createCodeSearchAgent } from "../agents/code_search_agent.ts";
 import { createGithubActivityAgent } from "../agents/github_activity_agent.ts";
-import { generateMarkdownFromDoc } from "../utils/markdown_to_doc.ts";
-import { Annotation, END, interrupt, START, StateGraph } from "@langchain/langgraph";
 import { GENERAL_NODE_PROMPT, ROUTE_DECISION_PROMPT } from '../utils/prompts.ts';
+import { Annotation, END, interrupt, START, StateGraph } from "@langchain/langgraph";
 
 const checkpointer = generateSqlLiteSaver("./repopilot-checkpoints.db");
 
@@ -20,10 +18,10 @@ type State = typeof supervisorState.State;
 
 const supervisorState = Annotation.Root({
     question: Annotation<string>(),
-    answer: Annotation<string>(),
+    answer: Annotation<string>({ reducer: (_, next) => next, default: () => "" }),
     repoContext: Annotation<RepoContext>(),
-    generatedDoc: Annotation<string>(),
-    approved: Annotation<boolean>(),
+    generatedDoc: Annotation<string>({ reducer: (_, next) => next, default: () => "" }),
+    approved: Annotation<boolean>({ reducer: (_, next) => next, default: () => false }),
 });
 
 const codeSearchAgents = new Map<string, ReactAgent>();
@@ -75,7 +73,7 @@ function lastMessageText(result: { messages: BaseMessage[] }): string {
 }
 
 async function codeSearchNode(state: State, config: RunnableConfig) {
-    const repoPath = state.repoContext.repoPath;
+    const repoPath = state.repoContext?.repoPath;
     if (!repoPath) {
         return { answer: "I need a local repo path (repoContext.repoPath) to search code." };
     }
@@ -101,23 +99,28 @@ async function githubActivityNode(state: State, config: RunnableConfig) {
 async function docGenNode(state: State, config: RunnableConfig) {
     const repoPath = state.repoContext?.repoPath;
     if (!repoPath) {
-        return { answer: "I need a local repo path (repoContext.repoPath) to generate docs." };
+        return { answer: "I need a local repo path (repoContext.repoPath) to generate docs.", generatedDoc: "" };
     }
+
     const agent = getDocGenAgent(repoPath);
     const result = await agent.invoke(
-        { messages: [{ role: "user", content: state.question }] },
+        { messages: [{ role: "human", content: state.question }] },
         config
     );
-    const parsed = onBoardingDocSchema.safeParse(result.structuredResponse);
-    const generatedDoc = parsed.success
-        ? generateMarkdownFromDoc(parsed.data)
-        : lastMessageText(result);
 
-    console.log(`Parsed ${parsed.data}`);
-    console.log(`Result ${result.structuredResponse}`);
+    let generatedDoc = lastMessageText(result);
 
+    if (!generatedDoc.trim()) {
+        const retry = await agent.invoke(
+            { messages: [{ role: "human", content: "Using only the code you already retrieved, write the complete Markdown document now. Do not call any tools." }] },
+            config
+        );
+        generatedDoc = lastMessageText(retry);
+    }
 
-
+    if (!generatedDoc.trim()) {
+        return { answer: "Doc generation failed: the agent returned no content.", generatedDoc: "", approved: false };
+    }
     return { generatedDoc };
 }
 
@@ -165,7 +168,12 @@ const supervisor = new StateGraph(supervisorState)
     })
     .addEdge("codeSearchNode", END)
     .addEdge("githubActivityNode", END)
-    .addEdge("docGenNode", "approveDoc")
+    // .addEdge("docGenNode", "approveDoc")
+    .addConditionalEdges(
+        "docGenNode",
+        (s: State) => (s.generatedDoc?.trim() ? "approveDoc" : END),
+        { approveDoc: "approveDoc", [END]: END }
+    )
     .addEdge("approveDoc", "writeDocNode")
     .addEdge("writeDocNode", END)
     .addEdge("generalNode", END)

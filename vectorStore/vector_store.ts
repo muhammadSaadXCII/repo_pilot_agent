@@ -1,4 +1,5 @@
 import fs from 'fs';
+import path from 'path';
 import type { Document } from "@langchain/core/documents";
 import { generateCodeFiles } from '../utils/code_files.ts';
 import { chromaDBFromDoc, loadChromaDB } from '../config/chroma.ts';
@@ -11,12 +12,13 @@ const splitter = new RecursiveCharacterTextSplitter({
     chunkOverlap: 100,
 });
 
-async function chunkFiles(filePaths: string[]): Promise<Document[]> {
+async function chunkFiles(filePaths: string[], repoPath: string): Promise<Document[]> {
     const docs: Document[] = [];
 
     for (const filePath of filePaths) {
         const content = fs.readFileSync(filePath, "utf-8");
-        const chunks = await splitter.createDocuments([content], [{ source: filePath }]);
+        const source = path.relative(repoPath, filePath).replace(/\\/g, "/");
+        const chunks = await splitter.createDocuments([content], [{ source }]);
         docs.push(...chunks);
     }
     return docs;
@@ -35,7 +37,7 @@ async function buildVectorStoreFromRepo(repoPath: string): Promise<Chroma> {
     if ((await collection.count()) > 0) return existing;
 
     const files = generateCodeFiles(repoPath);
-    const docs = await chunkFiles(files);
+    const docs = await chunkFiles(files, repoPath);
     return await buildVectorStore(docs, repoPath);
 }
 

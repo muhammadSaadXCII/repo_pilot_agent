@@ -34,24 +34,21 @@ async function main() {
             return;
         }
 
-        if (trimmed.toLowerCase() === 'e' ||
-            trimmed.toLowerCase() === 'exit' ||
-            trimmed.toLowerCase() === 'q' ||
-            trimmed.toLowerCase() === 'quit'
-        ) {
-            for await (const state of supervisor.getStateHistory(config)) {
-                console.log(state);
-            }
+        if (["e", "exit", "q", "quit"].includes(trimmed.toLowerCase())) {
             rl.close();
             return;
         }
 
-        const response = await supervisor.invoke(
-            { question: trimmed, repoContext },
-            config
-        );
-
-        await handleInterrupt(response);
+        try {
+            const response = await supervisor.invoke(
+                { question: trimmed, repoContext, answer: "", generatedDoc: "", approved: false },
+                config
+            );
+            await handleInterrupt(response);
+        } catch (err) {
+            console.error("Error:", err);
+        }
+        
         main();
     });
 }
