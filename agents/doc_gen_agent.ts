@@ -7,6 +7,16 @@ import type { BaseCheckpointSaver } from "@langchain/langgraph";
 import requestHumanApproval from "../tools/human_approval_tool.ts";
 import type { ClientTool, ServerTool } from "@langchain/core/tools";
 
+const docGenAgents = new Map<string, ReactAgent>();
+function getDocGenAgent(repoPath: string, checkpointer: BaseCheckpointSaver): ReactAgent {
+    let agent = docGenAgents.get(repoPath);
+    if (!agent) {
+        agent = createDocGenAgent(repoPath, checkpointer);
+        docGenAgents.set(repoPath, agent);
+    }
+    return agent;
+}
+
 function createDocGenAgent(repoPath: string, checkpointer: BaseCheckpointSaver): ReactAgent {
     return createAgent({
         model: llm,
@@ -16,4 +26,4 @@ function createDocGenAgent(repoPath: string, checkpointer: BaseCheckpointSaver):
     });
 }
 
-export { createDocGenAgent };
+export { getDocGenAgent };

@@ -12,7 +12,7 @@ const SKIP_FILES = new Set([
     "Cargo.lock", "poetry.lock", "Gemfile.lock", "go.sum", "test.ts",
 ]);
 
-const MAX_FILE_SIZE = 200 * 1024; // skip huge/generated files (200 KB)
+const MAX_FILE_SIZE = 200 * 1024; // skip huge files (200 KB)
 
 export const CODE_EXTENSIONS = [
     // JavaScript / TypeScript

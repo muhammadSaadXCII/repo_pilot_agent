@@ -1,0 +1,405 @@
+:root {
+    --paper: #eef2f1;
+    --surface: #fbfcfc;
+    --ink: #17232c;
+    --muted: #55666e;
+    --line: #cfd8d6;
+    --blue: #1f5f8b;
+    --blue-dark: #164a6d;
+    --amber: #b8730a;
+    --amber-bg: #fff6e3;
+    --code: #e3eae8;
+    --danger: #a63a2b;
+    --font: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+[hidden] {
+    display: none !important;
+}
+
+html,
+body {
+    height: 100%;
+}
+
+body {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--paper);
+    color: var(--ink);
+    font: 400 16px/1.55 var(--font);
+}
+
+:focus-visible {
+    outline: 2px solid var(--blue);
+    outline-offset: 2px;
+}
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
+/* Top bar */
+.topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 24px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--line);
+}
+
+.brand {
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+
+.account {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    color: var(--muted);
+    font-size: 14px;
+}
+
+/* Layout */
+main {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    justify-content: center;
+    padding: 0 16px;
+}
+
+.panel {
+    width: 100%;
+    max-width: 760px;
+}
+
+#signed-out {
+    padding-top: 12vh;
+}
+
+#signed-out h1 {
+    margin: 0 0 14px;
+    font-size: clamp(28px, 5vw, 40px);
+    line-height: 1.15;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    max-width: 18ch;
+}
+
+.lede {
+    margin: 0 0 24px;
+    max-width: 56ch;
+    color: var(--muted);
+}
+
+#app {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 0;
+    padding: 20px 0 16px;
+}
+
+/* Buttons */
+.btn {
+    display: inline-block;
+    padding: 9px 16px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    font: 500 15px/1.4 var(--font);
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.btn-primary {
+    background: var(--blue);
+    color: #fff;
+}
+
+.btn-primary:hover:not(:disabled) {
+    background: var(--blue-dark);
+}
+
+.btn-quiet {
+    background: var(--surface);
+    border-color: var(--line);
+    color: var(--ink);
+}
+
+.btn-quiet:hover:not(:disabled) {
+    border-color: var(--blue);
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.link-btn {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--blue);
+    font: inherit;
+    cursor: pointer;
+}
+
+.link-btn:hover {
+    text-decoration: underline;
+}
+
+/* Repo form */
+.repo-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.repo-form label {
+    font-weight: 500;
+    margin-right: 4px;
+}
+
+.repo-form input {
+    flex: 1 1 220px;
+    min-width: 0;
+    padding: 9px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--ink);
+    font: 400 15px/1.4 var(--mono);
+}
+
+.hint {
+    margin: 0;
+    min-height: 1.4em;
+    color: var(--muted);
+    font-size: 14px;
+}
+
+.hint.is-error {
+    color: var(--danger);
+}
+
+/* Chat */
+.chat {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    padding: 12px 4px;
+}
+
+.starters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.msg {
+    max-width: 100%;
+}
+
+.msg .body {
+    max-width: 70ch;
+}
+
+.msg-user {
+    padding-left: 14px;
+    border-left: 3px solid var(--blue);
+    font-weight: 500;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.msg-error {
+    padding-left: 14px;
+    border-left: 3px solid var(--danger);
+    color: var(--danger);
+}
+
+.msg-pending {
+    color: var(--muted);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .msg-pending {
+        animation: breathe 1.6s ease-in-out infinite;
+    }
+
+    @keyframes breathe {
+        50% {
+            opacity: 0.45;
+        }
+    }
+}
+
+.copy-btn {
+    margin-top: 6px;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+/* Rendered Markdown */
+.body> :first-child {
+    margin-top: 0;
+}
+
+.body> :last-child {
+    margin-bottom: 0;
+}
+
+.body p,
+.body ul,
+.body ol {
+    margin: 0.6em 0;
+}
+
+.body ul,
+.body ol {
+    padding-left: 1.3em;
+}
+
+.body h1,
+.body h2,
+.body h3,
+.body h4 {
+    margin: 1.2em 0 0.4em;
+    line-height: 1.25;
+    letter-spacing: -0.01em;
+}
+
+.body h1 {
+    font-size: 1.35em;
+}
+
+.body h2 {
+    font-size: 1.18em;
+}
+
+.body h3,
+.body h4 {
+    font-size: 1.05em;
+}
+
+.body a {
+    color: var(--blue);
+}
+
+.body code {
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: var(--code);
+    font: 400 0.9em var(--mono);
+}
+
+.body pre {
+    margin: 0.8em 0;
+    padding: 12px 14px;
+    overflow-x: auto;
+    border-radius: 6px;
+    background: var(--code);
+}
+
+.body pre code {
+    padding: 0;
+    background: none;
+}
+
+/* Approval card */
+.approval {
+    padding: 14px 16px;
+    border: 1px solid var(--amber);
+    border-left-width: 4px;
+    border-radius: 8px;
+    background: var(--amber-bg);
+}
+
+.approval h2 {
+    margin: 0 0 6px;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.approval-action {
+    margin: 0 0 6px;
+    font-weight: 500;
+}
+
+.approval-body {
+    max-height: 320px;
+    margin: 10px 0 12px;
+    padding: 10px 12px;
+    overflow: auto;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--surface);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.approval-body.is-markdown {
+    white-space: normal;
+}
+
+.approval-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.approval-status {
+    color: var(--muted);
+    font-size: 14px;
+}
+
+/* Composer */
+.composer {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+}
+
+.composer textarea {
+    flex: 1;
+    min-width: 0;
+    padding: 10px 12px;
+    resize: none;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--ink);
+    font: 400 16px/1.45 var(--font);
+}
+
+.composer textarea:disabled {
+    background: var(--paper);
+}
+
+@media (max-width: 520px) {
+    .topbar {
+        padding: 12px 16px;
+    }
+
+    #signed-out {
+        padding-top: 8vh;
+    }
+}

@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>RepoPilot</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="/style.css">
+</head>
+
+<body>
+    <header class="topbar">
+        <span class="brand">RepoPilot</span>
+        <div id="account" class="account" hidden>
+            <span id="login-name"></span>
+            <button id="logout" class="link-btn" type="button">Sign out</button>
+        </div>
+    </header>
+
+    <main>
+        <section id="signed-out" class="panel" hidden>
+            <h1>Ask a GitHub repo how it works</h1>
+            <p class="lede">Sign in with GitHub, pick a public repository, and ask about its code, its recent activity,
+                or have RepoPilot draft onboarding docs.</p>
+            <p id="signed-out-note" class="hint" role="status"></p>
+            <a class="btn btn-primary" href="/auth/github">Sign in with GitHub</a>
+        </section>
+
+        <section id="app" class="panel" hidden>
+            <form id="repo-form" class="repo-form">
+                <label for="repo-input">Repository</label>
+                <input id="repo-input" name="repo" type="text" autocomplete="off" spellcheck="false"
+                    placeholder="owner/repo or a GitHub URL">
+                <button class="btn btn-quiet" type="submit">Connect</button>
+            </form>
+            <p id="repo-hint" class="hint" role="status">Public repositories only.</p>
+
+            <div id="chat" class="chat" role="log" aria-live="polite" aria-label="Conversation"></div>
+            <div id="starters" class="starters" hidden></div>
+
+            <form id="composer" class="composer">
+                <label class="sr-only" for="question">Your question</label>
+                <textarea id="question" rows="2" disabled placeholder="Connect a repository first"></textarea>
+                <button id="send" class="btn btn-primary" type="submit" disabled>Send</button>
+            </form>
+        </section>
+    </main>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
+    <script src="/app.js"></script>
+</body>
+
+</html>
