@@ -13,7 +13,7 @@ const IDEAS = [
     { title: "Draft onboarding docs", question: "Write onboarding docs for this repo" },
 ];
 
-const state = { owner: null, repo: null, busy: false, awaitingApproval: false };
+const state = { owner: null, repo: null, hasRepos: false, busy: false, awaitingApproval: false };
 
 /* ---------- helpers ---------- */
 
@@ -59,6 +59,7 @@ function updateComposer() {
     const enabled = Boolean(state.repo) && !state.busy && !state.awaitingApproval;
     els.question.disabled = !enabled;
     els.send.disabled = !enabled;
+    els.repoSelect.disabled = state.busy || !state.hasRepos;
     if (!state.repo) els.question.placeholder = "Connect a repository first";
     else if (state.awaitingApproval) els.question.placeholder = "Approve or reject the request above to continue";
     else els.question.placeholder = "Ask about the code, recent activity, or docs";
@@ -267,6 +268,21 @@ function connect(repo) {
     if (!els.question.disabled) els.question.focus();
 }
 
+// Choosing "Select a repository" again turns everything off until a repo is picked.
+function disconnect() {
+    state.repo = null;
+    state.awaitingApproval = false;
+    try { localStorage.removeItem(STORAGE_KEY); } catch { /* storage unavailable */ }
+    els.repoSelect.value = "";
+    els.currentRepo.hidden = true;
+    els.chat.replaceChildren();
+    els.question.value = "";
+    resizeComposer();
+    setHint(DEFAULT_HINT);
+    syncEmpty();
+    updateComposer();
+}
+
 /* ---------- screens ---------- */
 
 function showSignedOut(note = "") {
@@ -294,6 +310,7 @@ function showApp(me) {
 }
 
 async function loadRepos(owner) {
+    state.hasRepos = false;
     els.repoSelect.disabled = true;
     els.repoSelect.replaceChildren(new Option("Loading repositories…", ""));
     try {
@@ -312,7 +329,8 @@ async function loadRepos(owner) {
             if (repo.description) option.title = repo.description;
             els.repoSelect.append(option);
         }
-        els.repoSelect.disabled = names.length === 0;
+        state.hasRepos = names.length > 0;
+        els.repoSelect.disabled = !state.hasRepos;
 
         let saved = null;
         try { saved = localStorage.getItem(STORAGE_KEY); } catch { /* storage unavailable */ }
@@ -328,6 +346,7 @@ async function loadRepos(owner) {
 
 els.repoSelect.addEventListener("change", () => {
     if (els.repoSelect.value) connect({ owner: state.owner, repo: els.repoSelect.value });
+    else disconnect();
 });
 
 els.composer.addEventListener("submit", (event) => {
