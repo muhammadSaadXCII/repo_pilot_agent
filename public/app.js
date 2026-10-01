@@ -1,12 +1,11 @@
 const els = {};
-for (const id of ["signed-out", "signed-out-note", "app", "account", "avatar", "login-name", "logout", "repo-form", "repo-input", "repo-hint", "current-repo", "current-owner", "current-name", "repo-link", "empty", "chat", "composer", "question", "send"]) {
+for (const id of ["signed-out", "signed-out-note", "app", "account", "avatar", "login-name", "logout", "repo-owner", "repo-select", "repo-hint", "current-repo", "current-owner", "current-name", "repo-link", "empty", "chat", "composer", "question", "send"]) {
     els[id.replace(/-./g, (m) => m[1].toUpperCase())] = document.getElementById(id);
 }
 
-const NAME_PATTERN = /^[A-Za-z0-9_.-]+$/;
 const PATH_PATTERN = /^[\w.\-/]+\.(ts|tsx|js|jsx|mjs|cjs|json|md|py|go|rs|java|kt|rb|php|cs|c|h|cpp|dart|swift|css|scss|html|ya?ml|toml|sql|sh|txt|xml)$/i;
 const STORAGE_KEY = "repopilot:last-repo";
-const DEFAULT_HINT = "Public repositories only.";
+const DEFAULT_HINT = "Showing your public repositories.";
 const MARK = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 4.5l3.2 7.5-3.2 7.5-3.2-7.5z" fill="currentColor"/></svg>';
 const IDEAS = [
     { title: "Explain the code", question: "What does this project do?" },
@@ -14,7 +13,7 @@ const IDEAS = [
     { title: "Draft onboarding docs", question: "Write onboarding docs for this repo" },
 ];
 
-const state = { repo: null, busy: false, awaitingApproval: false };
+const state = { owner: null, repo: null, busy: false, awaitingApproval: false };
 
 /* ---------- helpers ---------- */
 
@@ -51,14 +50,6 @@ function scrollToBottom() {
     els.chat.scrollTop = els.chat.scrollHeight;
 }
 
-function parseRepo(value) {
-    const cleaned = value.trim().replace(/^(https?:\/\/)?(www\.)?github\.com\//i, "").replace(/^\/+/, "");
-    const [owner, rawRepo] = cleaned.split("/");
-    const repo = rawRepo ? rawRepo.replace(/\.git$/i, "") : "";
-    const valid = (s) => Boolean(s) && NAME_PATTERN.test(s) && s !== "." && s !== ".." && s.length <= 100;
-    return valid(owner) && valid(repo) ? { owner, repo } : null;
-}
-
 function setHint(text, isError = false) {
     els.repoHint.textContent = text;
     els.repoHint.classList.toggle("is-error", isError);
@@ -83,7 +74,7 @@ function resizeComposer() {
 function renderEmpty() {
     els.empty.replaceChildren();
     if (!state.repo) {
-        els.empty.append(el("h2", "", "Connect a repository"), el("p", "", "Enter owner/repo or paste a GitHub URL to begin."));
+        els.empty.append(el("h2", "", "Connect a repository"), el("p", "", "Choose one of your repositories from the list to begin."));
         return;
     }
     const { owner, repo } = state.repo;
@@ -261,9 +252,8 @@ async function decide(card, approved, statusEl) {
 function connect(repo) {
     state.repo = repo;
     state.awaitingApproval = false;
-    const label = `${repo.owner}/${repo.repo}`;
-    els.repoInput.value = label;
-    try { localStorage.setItem(STORAGE_KEY, label); } catch { /* storage unavailable */ }
+    els.repoSelect.value = repo.repo;
+    try { localStorage.setItem(STORAGE_KEY, repo.repo); } catch { /* storage unavailable */ }
 
     els.currentOwner.textContent = `${repo.owner}/`;
     els.currentName.textContent = repo.repo;
@@ -295,27 +285,49 @@ function showApp(me) {
     els.account.hidden = false;
     els.loginName.textContent = me.login;
     els.avatar.src = `https://github.com/${encodeURIComponent(me.login)}.png?size=56`;
+    state.owner = me.login;
+    els.repoOwner.textContent = `${me.login} /`;
     setHint(DEFAULT_HINT);
     syncEmpty();
     updateComposer();
+    loadRepos(me.login);
+}
 
-    let saved = null;
-    try { saved = localStorage.getItem(STORAGE_KEY); } catch { /* storage unavailable */ }
-    const repo = saved ? parseRepo(saved) : null;
-    if (repo) connect(repo);
-    else els.repoInput.focus();
+async function loadRepos(owner) {
+    els.repoSelect.disabled = true;
+    els.repoSelect.replaceChildren(new Option("Loading repositories…", ""));
+    try {
+        const res = await fetch("/api/repos");
+        if (res.status === 401) {
+            showSignedOut("Your session ended. Sign in again to continue.");
+            return;
+        }
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Could not load your repositories.");
+
+        const names = data.repos.map((r) => r.name);
+        els.repoSelect.replaceChildren(new Option(names.length ? "Select a repository" : "No public repositories found", ""));
+        for (const repo of data.repos) {
+            const option = new Option(repo.name, repo.name);
+            if (repo.description) option.title = repo.description;
+            els.repoSelect.append(option);
+        }
+        els.repoSelect.disabled = names.length === 0;
+
+        let saved = null;
+        try { saved = localStorage.getItem(STORAGE_KEY); } catch { /* storage unavailable */ }
+        const savedName = saved ? saved.split("/").pop() : null;
+        if (savedName && names.includes(savedName)) connect({ owner, repo: savedName });
+    } catch (err) {
+        els.repoSelect.replaceChildren(new Option("Could not load repositories", ""));
+        setHint(err.message, true);
+    }
 }
 
 /* ---------- events ---------- */
 
-els.repoForm.addEventListener("submit", (event) => {
-    event.preventDefault();
-    const repo = parseRepo(els.repoInput.value);
-    if (!repo) {
-        setHint("Enter a repository as owner/repo, or paste its GitHub URL.", true);
-        return;
-    }
-    connect(repo);
+els.repoSelect.addEventListener("change", () => {
+    if (els.repoSelect.value) connect({ owner: state.owner, repo: els.repoSelect.value });
 });
 
 els.composer.addEventListener("submit", (event) => {

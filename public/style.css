@@ -258,20 +258,34 @@ body.in-app main {
     font-weight: 600;
 }
 
-.repo-row {
+.repo-field {
     display: flex;
-    gap: 8px;
+    flex-direction: column;
 }
 
-.repo-row input {
-    flex: 1;
-    min-width: 0;
-    padding: 9px 12px;
+.repo-owner {
+    padding: 8px 12px;
     border: 1px solid var(--rule);
-    border-radius: 8px;
+    border-bottom: 0;
+    border-radius: 8px 8px 0 0;
+    background: var(--code);
+    color: var(--muted);
+    font: 400 13px/1.4 var(--mono);
+    overflow-wrap: anywhere;
+}
+
+.repo-select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--rule);
+    border-radius: 0 0 8px 8px;
     background: var(--bg);
     color: var(--ink);
     font: 400 14px/1.4 var(--mono);
+}
+
+.repo-select:disabled {
+    opacity: 0.6;
 }
 
 .current-repo {

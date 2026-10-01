@@ -34,6 +34,33 @@ function threadConfig(user: SessionUser, owner: string, repo: string) {
     };
 }
 
+// Lists the signed-in user's own public repositories for the dropdown.
+router.get("/repos", async (_req, res) => {
+    const user = res.locals.user as SessionUser;
+    try {
+        const repos: { name: string; description: string | null }[] = [];
+        for (let page = 1; page <= 3; page++) {
+            const ghRes = await fetch(
+                `https://api.github.com/user/repos?visibility=public&affiliation=owner&sort=updated&per_page=100&page=${page}`,
+                { headers: { Authorization: `Bearer ${user.token}`, Accept: "application/vnd.github+json" } }
+            );
+            if (ghRes.status === 401) {
+                res.clearCookie("session");
+                res.status(401).json({ error: "GitHub rejected your session. Sign in again." });
+                return;
+            }
+            if (!ghRes.ok) throw new Error(`GitHub responded with ${ghRes.status}`);
+            const batch = (await ghRes.json()) as { name: string; description: string | null }[];
+            repos.push(...batch.map((r) => ({ name: r.name, description: r.description })));
+            if (batch.length < 100) break;
+        }
+        res.json({ owner: user.login, repos });
+    } catch (err) {
+        console.error("repos error:", err);
+        res.status(502).json({ error: "Could not load your repositories from GitHub." });
+    }
+});
+
 router.post("/chat", async (req, res) => {
     const parsed = chatBody.safeParse(req.body);
     if (!parsed.success) {

@@ -10,7 +10,7 @@
     <link
         href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
         rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="/style.css">
 </head>
 
 <body>
@@ -70,14 +70,15 @@
 
         <section id="app" class="workspace" hidden>
             <aside class="sidebar">
-                <form id="repo-form">
-                    <label for="repo-input">Repository</label>
-                    <div class="repo-row">
-                        <input id="repo-input" name="repo" type="text" autocomplete="off" spellcheck="false"
-                            placeholder="owner/repo or GitHub URL">
-                        <button class="btn btn-quiet" type="submit">Connect</button>
+                <div>
+                    <label for="repo-select">Repository</label>
+                    <div class="repo-field">
+                        <span id="repo-owner" class="repo-owner"></span>
+                        <select id="repo-select" class="repo-select" disabled>
+                            <option value="">Loading repositories…</option>
+                        </select>
                     </div>
-                </form>
+                </div>
                 <p id="repo-hint" class="hint" role="status">Public repositories only.</p>
                 <div id="current-repo" class="current-repo" hidden>
                     <p class="current-name"><span id="current-owner" class="owner"></span><span
