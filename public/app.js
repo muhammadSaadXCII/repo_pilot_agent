@@ -1,29 +1,17 @@
-const $ = (selector) => document.querySelector(selector);
-
-const els = {
-    signedOut: $("#signed-out"),
-    signedOutNote: $("#signed-out-note"),
-    app: $("#app"),
-    account: $("#account"),
-    loginName: $("#login-name"),
-    logout: $("#logout"),
-    repoForm: $("#repo-form"),
-    repoInput: $("#repo-input"),
-    repoHint: $("#repo-hint"),
-    chat: $("#chat"),
-    starters: $("#starters"),
-    composer: $("#composer"),
-    question: $("#question"),
-    send: $("#send"),
-};
+const els = {};
+for (const id of ["signed-out", "signed-out-note", "app", "account", "avatar", "login-name", "logout", "repo-form", "repo-input", "repo-hint", "current-repo", "current-owner", "current-name", "repo-link", "empty", "chat", "composer", "question", "send"]) {
+    els[id.replace(/-./g, (m) => m[1].toUpperCase())] = document.getElementById(id);
+}
 
 const NAME_PATTERN = /^[A-Za-z0-9_.-]+$/;
+const PATH_PATTERN = /^[\w.\-/]+\.(ts|tsx|js|jsx|mjs|cjs|json|md|py|go|rs|java|kt|rb|php|cs|c|h|cpp|dart|swift|css|scss|html|ya?ml|toml|sql|sh|txt|xml)$/i;
 const STORAGE_KEY = "repopilot:last-repo";
 const DEFAULT_HINT = "Public repositories only.";
-const STARTERS = [
-    "What does this project do?",
-    "What changed in the last week?",
-    "Write onboarding docs for this repo",
+const MARK = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 4.5l3.2 7.5-3.2 7.5-3.2-7.5z" fill="currentColor"/></svg>';
+const IDEAS = [
+    { title: "Explain the code", question: "What does this project do?" },
+    { title: "Check recent activity", question: "What changed in the last week?" },
+    { title: "Draft onboarding docs", question: "Write onboarding docs for this repo" },
 ];
 
 const state = { repo: null, busy: false, awaitingApproval: false };
@@ -46,12 +34,17 @@ if (window.DOMPurify) {
     });
 }
 
+// Styles inline code that looks like a file path as a chip.
+function decorate(root) {
+    root.querySelectorAll("code").forEach((code) => {
+        if (!code.closest("pre") && PATH_PATTERN.test(code.textContent.trim())) code.classList.add("path");
+    });
+}
+
 function renderMarkdown(target, text) {
-    if (window.marked && window.DOMPurify) {
-        target.innerHTML = DOMPurify.sanitize(marked.parse(text));
-    } else {
-        target.textContent = text;
-    }
+    if (window.marked && window.DOMPurify) target.innerHTML = DOMPurify.sanitize(marked.parse(text));
+    else target.textContent = text;
+    decorate(target);
 }
 
 function scrollToBottom() {
@@ -80,31 +73,64 @@ function updateComposer() {
     else els.question.placeholder = "Ask about the code, recent activity, or docs";
 }
 
-function renderStarters() {
-    els.starters.replaceChildren();
-    const visible = Boolean(state.repo) && els.chat.childElementCount === 0;
-    els.starters.hidden = !visible;
-    if (!visible) return;
-    for (const text of STARTERS) {
-        const button = el("button", "btn btn-quiet", text);
-        button.type = "button";
-        button.addEventListener("click", () => ask(text));
-        els.starters.append(button);
+function resizeComposer() {
+    els.question.style.height = "auto";
+    els.question.style.height = `${Math.min(els.question.scrollHeight, 160)}px`;
+}
+
+/* ---------- empty state ---------- */
+
+function renderEmpty() {
+    els.empty.replaceChildren();
+    if (!state.repo) {
+        els.empty.append(el("h2", "", "Connect a repository"), el("p", "", "Enter owner/repo or paste a GitHub URL to begin."));
+        return;
     }
+    const { owner, repo } = state.repo;
+    els.empty.append(
+        el("h2", "", `Ask about ${owner}/${repo}`),
+        el("p", "", "RepoPilot can explain how the code works, report on recent GitHub activity, and draft onboarding docs.")
+    );
+    const list = el("div", "ideas");
+    for (const idea of IDEAS) {
+        const button = el("button", "idea");
+        button.type = "button";
+        button.append(el("strong", "", idea.title), el("span", "", idea.question));
+        button.addEventListener("click", () => ask(idea.question));
+        list.append(button);
+    }
+    els.empty.append(list);
+}
+
+function syncEmpty() {
+    const hasMessages = els.chat.childElementCount > 0;
+    els.chat.hidden = !hasMessages;
+    els.empty.hidden = hasMessages;
+    if (!hasMessages) renderEmpty();
+}
+
+function push(node) {
+    els.chat.append(node);
+    syncEmpty();
+    scrollToBottom();
 }
 
 /* ---------- messages ---------- */
 
 function addUser(text) {
-    els.chat.append(el("div", "msg msg-user", text));
-    renderStarters();
-    scrollToBottom();
+    const wrap = el("div", "msg msg-user");
+    wrap.append(el("div", "bubble", text));
+    push(wrap);
 }
 
 function addAssistant(text) {
-    const wrapper = el("div", "msg msg-assistant");
+    const wrap = el("div", "msg msg-assistant");
+    const mark = el("span", "avatar-mark");
+    mark.innerHTML = MARK;
+    const main = el("div", "msg-main");
     const body = el("div", "body");
     renderMarkdown(body, text);
+
     const copy = el("button", "link-btn copy-btn", "Copy");
     copy.type = "button";
     copy.addEventListener("click", async () => {
@@ -116,27 +142,42 @@ function addAssistant(text) {
             copy.textContent = "Copy failed";
         }
     });
-    wrapper.append(body, copy);
-    els.chat.append(wrapper);
-    scrollToBottom();
+
+    main.append(body, copy);
+    wrap.append(mark, main);
+    push(wrap);
 }
 
 function addError(text) {
-    els.chat.append(el("div", "msg msg-error", text));
-    scrollToBottom();
+    push(el("div", "msg msg-error", text));
 }
 
 function addPending() {
-    const node = el("div", "msg msg-pending", "Working on it. The first question about a repo takes longer while it is cloned and indexed.");
-    els.chat.append(node);
-    scrollToBottom();
-    return node;
+    const node = el("div", "msg msg-pending");
+    const label = el("span", "");
+    const note = el("span", "pending-note");
+    node.append(el("span", "pulse"), label, note);
+    push(node);
+
+    const started = Date.now();
+    const tick = () => {
+        const seconds = Math.floor((Date.now() - started) / 1000);
+        label.textContent = `Working ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+        if (seconds >= 8) note.textContent = "The first question about a repository takes longer while it is cloned and indexed.";
+    };
+    tick();
+    const timer = setInterval(tick, 1000);
+    return { stop: () => { clearInterval(timer); node.remove(); } };
 }
 
 function addApproval(payload) {
     const isDoc = Boolean(payload.preview);
     const card = el("section", "approval");
-    card.append(el("h2", "", isDoc ? "Review the document" : "Approval needed"));
+    card.setAttribute("aria-label", "Approval request");
+    card.append(
+        el("h2", "", isDoc ? "Review the document" : "Approval needed"),
+        el("p", "approval-sub", "RepoPilot paused and is waiting for your decision.")
+    );
     if (!isDoc && payload.action) card.append(el("p", "approval-action", payload.action));
 
     const body = el("div", isDoc ? "approval-body body is-markdown" : "approval-body");
@@ -154,9 +195,7 @@ function addApproval(payload) {
     reject.addEventListener("click", () => decide(card, false, status));
     actions.append(approve, reject, status);
     card.append(actions);
-
-    els.chat.append(card);
-    scrollToBottom();
+    push(card);
 }
 
 /* ---------- API ---------- */
@@ -196,7 +235,7 @@ async function run(path, body) {
     } catch (err) {
         if (err.message !== "unauthenticated") addError(err.message);
     } finally {
-        pending.remove();
+        pending.stop();
         state.busy = false;
         updateComposer();
         if (!els.question.disabled) els.question.focus();
@@ -211,6 +250,7 @@ async function ask(question) {
 
 async function decide(card, approved, statusEl) {
     card.querySelectorAll("button").forEach((b) => (b.disabled = true));
+    card.classList.add("is-resolved");
     statusEl.textContent = approved ? "You approved this." : "You rejected this.";
     state.awaitingApproval = false;
     await run("/api/chat/resume", { ...state.repo, approved });
@@ -221,11 +261,18 @@ async function decide(card, approved, statusEl) {
 function connect(repo) {
     state.repo = repo;
     state.awaitingApproval = false;
-    els.repoInput.value = `${repo.owner}/${repo.repo}`;
-    try { localStorage.setItem(STORAGE_KEY, els.repoInput.value); } catch { /* storage unavailable */ }
+    const label = `${repo.owner}/${repo.repo}`;
+    els.repoInput.value = label;
+    try { localStorage.setItem(STORAGE_KEY, label); } catch { /* storage unavailable */ }
+
+    els.currentOwner.textContent = `${repo.owner}/`;
+    els.currentName.textContent = repo.repo;
+    els.repoLink.href = `https://github.com/${repo.owner}/${repo.repo}`;
+    els.currentRepo.hidden = false;
+
     els.chat.replaceChildren();
-    setHint(`Connected to ${repo.owner}/${repo.repo}. Public repositories only.`);
-    renderStarters();
+    setHint(DEFAULT_HINT);
+    syncEmpty();
     updateComposer();
     if (!els.question.disabled) els.question.focus();
 }
@@ -234,6 +281,7 @@ function connect(repo) {
 
 function showSignedOut(note = "") {
     state.repo = null;
+    document.body.classList.remove("in-app");
     els.app.hidden = true;
     els.account.hidden = true;
     els.signedOut.hidden = false;
@@ -241,11 +289,14 @@ function showSignedOut(note = "") {
 }
 
 function showApp(me) {
+    document.body.classList.add("in-app");
     els.signedOut.hidden = true;
     els.app.hidden = false;
     els.account.hidden = false;
-    els.loginName.textContent = `Signed in as ${me.login}`;
+    els.loginName.textContent = me.login;
+    els.avatar.src = `https://github.com/${encodeURIComponent(me.login)}.png?size=56`;
     setHint(DEFAULT_HINT);
+    syncEmpty();
     updateComposer();
 
     let saved = null;
@@ -272,9 +323,11 @@ els.composer.addEventListener("submit", (event) => {
     const question = els.question.value.trim();
     if (!question) return;
     els.question.value = "";
+    resizeComposer();
     ask(question);
 });
 
+els.question.addEventListener("input", resizeComposer);
 els.question.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && !event.shiftKey) {
         event.preventDefault();
@@ -288,6 +341,7 @@ els.logout.addEventListener("click", async () => {
 });
 
 (async function init() {
+    document.querySelectorAll(".demo .body").forEach(decorate);
     try {
         const res = await fetch("/auth/me");
         if (res.ok) {
